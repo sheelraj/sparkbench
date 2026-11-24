@@ -67,6 +67,8 @@
       ],
       observe(o) {
         const lit = ['green', 'yellow', 'red'].filter((id) => o.level(id) > 0.5);
+        if (!o.mem.started) { o.mem.started = true; o.got.overlap = false; }
+        if (lit.length > 1) o.got.overlap = true;
         const sole = lit.length === 1 ? lit[0][0] : lit.length ? 'x' : '';
         if (sole && sole !== o.mem.last) { o.mem.seq = (o.mem.seq || '') + sole; o.mem.last = sole; }
         if (/gyr/.test(o.mem.seq || '')) o.got.seq = true;
@@ -177,6 +179,83 @@
       solution: () => [B('forever', {}, [B('if', { cond: { k: 'motion', pin: 'D3' } }, [B('servo', { pin: 'D5', value: { k: 'num', v: 90 } })], [B('servo', { pin: 'D5', value: { k: 'num', v: 0 } })])])],
     },
   ];
+
+  /* ---- "Still needed" messages: what an unticked coding step is missing, in plain words ---- */
+  const onOff = (list, pin, state) => has(list, 'pin_on', (f) => f.pin === pin && f.state === state);
+  function blinkNeed(c, pin) {
+    const A = all(c), L = looped(c);
+    if (!has(A, 'forever')) return 'Add a “repeat forever” block and put your blocks inside it.';
+    for (const state of ['on', 'off']) {
+      const S = state.toUpperCase();
+      if (onOff(L, pin, state)) continue;
+      if (onOff(A, pin, state)) return `Your “turn pin ${pin} ${S}” block is outside the loop. Drag it inside “repeat forever”.`;
+      return has(A, 'pin_on', (f) => f.pin !== pin) && !has(A, 'pin_on', (f) => f.pin === pin)
+        ? `Your pin blocks use a different pin. Change them to ${pin}.`
+        : `Pin ${pin} is never turned ${S}.`;
+    }
+    const n = count(L, 'wait');
+    if (n < 2) return `You need two “wait” blocks inside the loop, one after ON and one after OFF. You have ${n}.`;
+    return null;
+  }
+  /* test(f, b) says whether an "if" block asks the right question; ask describes that question */
+  function ifNeed(c, test, ask) {
+    const A = all(c);
+    if (!has(A, 'if')) return 'Add an “if … else” block.';
+    if (!has(A, 'if', test)) return `Set the question in the “if” block to ${ask}.`;
+    if (!has(looped(c), 'if', test)) return 'Put the “if … else” block inside “repeat forever” so the board keeps checking.';
+    return null;
+  }
+  const NEED = {
+    blink: { 1: (c) => blinkNeed(c, 'D13') },
+    wire: { 2: (c) => blinkNeed(c, 'D8') },
+    traffic: {
+      2: (c) => {
+        const A = all(c);
+        for (const [pin, name] of [['D8', 'green'], ['D9', 'yellow'], ['D10', 'red']]) {
+          if (!onOff(A, pin, 'on')) return `The ${name} light (pin ${pin}) is never turned ON.`;
+          if (!onOff(A, pin, 'off')) return `The ${name} light (pin ${pin}) is never turned OFF. Add “turn pin ${pin} OFF” after its wait.`;
+        }
+        const n = count(A, 'wait');
+        return n < 3 ? `Each light needs a “wait” while it is on, so three in total. You have ${n}.` : null;
+      },
+      3: (c) => (c.got.overlap ? 'Last run, more than one light was on at the same time. Turn each light OFF before the next one comes ON.' : null),
+    },
+    doorbell: {
+      2: (c) => ifNeed(c, (f) => f.cond.k === 'button' && f.cond.pin === 'D2', '“button pressed on” D2')
+        || (!has(all(c), 'tone', (f) => f.pin === 'D6') ? 'Add “play note … on pin D6” in the top gap of the “if” block.' : null)
+        || (!has(all(c), 'tone_off', (f) => f.pin === 'D6') ? 'Add “stop sound on pin D6” in the else gap.' : null),
+    },
+    dimmer: {
+      4: (c) => {
+        const A = all(c), ok = (f) => f.pin === 'D9' && f.value.k === 'knob' && f.value.pin === 'A0';
+        if (!has(A, 'brightness')) return 'Add a “set brightness” block.';
+        if (!has(A, 'brightness', (f) => f.pin === 'D9')) return 'Set the pin in the brightness block to D9.';
+        if (!has(A, 'brightness', ok)) return 'In the brightness block, change “number” to “knob on” and pick A0.';
+        if (!has(looped(c), 'brightness', ok)) return 'Put the brightness block inside “repeat forever” so the LED keeps following the knob.';
+        return null;
+      },
+    },
+    night: {
+      4: (c) => ifNeed(c, (f, b) => f.cond.k === 'cmp' && SB.valuesOf(b).some((v) => v.k === 'light' && v.pin === 'A1'), '“compare”, with “light on” A1 on the left')
+        || (!onOff(all(c), 'D9', 'on') ? 'Add “turn pin D9 ON” in the top gap of the “if” block.' : null)
+        || (!onOff(all(c), 'D9', 'off') ? 'Add “turn pin D9 OFF” in the else gap.' : null),
+    },
+    parking: {
+      3: (c) => (!has(all(c), 'print_val', (f) => f.value.k === 'dist') ? 'Add “print a value” and change its value to “distance (cm)”.' : null)
+        || ifNeed(c, (f, b) => f.cond.k === 'cmp' && usesValue(b, 'dist'), '“compare”, with “distance (cm)” on the left')
+        || (!has(all(c), 'tone', (f) => f.pin === 'D6') ? 'Add “play note … on pin D6” in the top gap of the “if” block.' : null)
+        || (!has(all(c), 'tone_off') ? 'Add “stop sound on pin D6” in the else gap.' : null),
+    },
+    gate: {
+      4: (c) => {
+        const r = ifNeed(c, (f) => f.cond.k === 'motion' && f.cond.pin === 'D3', '“motion seen on” D3');
+        if (r) return r;
+        const n = count(all(c).filter((b) => b.f.pin === 'D5'), 'servo');
+        return n < 2 ? `You need two “move servo on pin D5” blocks: one to 90 in the top gap and one to 0 in the else gap. You have ${n}.` : null;
+      },
+    },
+  };
+  SB.MISSIONS.forEach((m) => Object.entries(NEED[m.id] || {}).forEach(([i, fn]) => { m.steps[i].need = fn; }));
 
   SB.missionBench = function (m) {
     return { parts: m.parts.map((p) => SB.makePart(p.type, p.id, SB.slot(p.slot[0], p.slot[1]), p.color ? { color: p.color } : {})), wires: [] };

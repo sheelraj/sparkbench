@@ -146,6 +146,7 @@ p { margin: 0; }
 .step.done .tick { background: var(--ok); border-color: var(--ok); }
 .step.done .tick::after { content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 .step.done > div > p { color: var(--ink-2); }
+.need { margin: 2px 0; padding: 3px 8px; border-left: 3px solid var(--accent); background: #fff3ea; color: #7a3300; font-size: 13.5px; border-radius: 0 6px 6px 0; }
 .step details { font-size: 13.5px; color: var(--ink-2); }
 .step summary { cursor: pointer; width: fit-content; text-decoration: underline; }
 .done-box { padding: 3px 4px 3px 12px; border-radius: 10px; background: #e3f5ec; border: 1.5px solid var(--ok); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-weight: 700; }

@@ -9,7 +9,7 @@ A browser app where kids wire up an Arduino-style board, program it with drag-an
 - **Blocks** – loops, if/else, wait, lights, brightness, sound, servo, print and variables. Drag them from the list, or click one to add it at the end. Drag a block out of the program to delete it.
 - **Live MicroPython** – the code for the blocks updates as they change. While the program runs, the current block and its line of code light up together.
 - **Bench check** – pressing Run first checks the wiring and explains, in plain words, what is wrong (for example an LED that is in backwards).
-- **8 guided missions** – Blink, First wire, Traffic light, Doorbell, Dimmer knob, Night light, Parking sensor, Robot gate. Each step ticks itself off when the wiring, the code, or the behaviour is right.
+- **8 guided missions** – Blink, First wire, Traffic light, Doorbell, Dimmer knob, Night light, Parking sensor, Robot gate. Each step ticks itself off when the wiring, the code, or the behaviour is right. An unticked coding step says what is still missing.
 - **Free build** – an open bench with a parts drawer.
 - **Meet the board** – a short tour of the parts of the board.
 

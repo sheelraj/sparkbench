@@ -500,7 +500,7 @@
         `<div class="mis-top"><div class="chips">${SB.MISSIONS.map((x, i) => `<button type="button" class="chip${i === store.mi ? ' cur' : ''}${store.done[x.id] ? ' done' : ''}" data-go="${i}" title="${esc(x.title)}" aria-label="Mission ${i + 1}: ${esc(x.title)}">${i + 1}</button>`).join('')}</div>` +
         `<div id="doneBox"></div><div class="spacer"></div><button type="button" class="link" data-do="answer">Show me the answer</button><button type="button" class="link" data-do="restart">Start over</button></div>` +
         `<div class="mis-body"><div><p class="eyebrow">Mission ${store.mi + 1} of ${n}</p><h2>${esc(m.title)}</h2><p class="story">${esc(m.story)}</p></div>` +
-        `<ol class="steps">${m.steps.map((s) => `<li class="step"><span class="tick" aria-hidden="true"></span><div><p>${esc(s.text)}</p><details><summary>Hint</summary><p>${esc(s.hint)}</p></details></div></li>`).join('')}</ol></div>`;
+        `<ol class="steps">${m.steps.map((s) => `<li class="step"><span class="tick" aria-hidden="true"></span><div><p>${esc(s.text)}</p><p class="need" hidden></p><details><summary>Hint</summary><p>${esc(s.hint)}</p></details></div></li>`).join('')}</ol></div>`;
     } else {
       panel.innerHTML =
         `<p class="eyebrow">Free build</p><h2>Parts drawer</h2>` +
@@ -522,7 +522,13 @@
       let ok = false;
       try { ok = !!s.check(ctx); } catch (e) { ok = false; }
       if (ok) n++;
-      if (els[i]) els[i].classList.toggle('done', ok);
+      if (!els[i]) return;
+      els[i].classList.toggle('done', ok);
+      // say what is still missing, once there is something to judge
+      let need = '';
+      if (!ok && s.need && (w.program.length || i === m.steps.length - 1)) { try { need = s.need(ctx) || ''; } catch (e) { need = ''; } }
+      const el = els[i].querySelector('.need');
+      if (el) { el.hidden = !need; el.textContent = need ? 'Still needed: ' + need : ''; }
     });
     const complete = n === m.steps.length;
     if (complete && !store.done[m.id]) {
