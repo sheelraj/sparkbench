@@ -53,19 +53,26 @@
       const d = SB.PARTS[p.type], v = SB.view(b, hw, p), fl = SB.isFlipped(p);
       if (p.type === 'servo') v.shown = shown[p.id] || 0;
       s += `<g transform="translate(${p.x} ${p.y})" class="part" data-act="part" data-part="${p.id}">`;
-      d.terms.forEach((t) => { s += `<line x1="${t.x}" y1="${fl ? 0 : d.h}" x2="${t.x}" y2="${fl ? -12 : d.h + 12}" class="leg"/>`; });
+      d.terms.forEach((t) => { const tx = SB.termX(p, t); s += `<line x1="${tx}" y1="${fl ? 0 : d.h}" x2="${tx}" y2="${fl ? -12 : d.h + 12}" class="leg"/>`; });
       s += `<rect width="${d.w}" height="${d.h}" rx="10" class="card"/>`;
       s += `<text x="${d.w / 2}" y="${fl ? d.h - 5 : 13}" text-anchor="middle" class="p-name">${esc(d.name(p))}</text>`;
-      d.terms.forEach((t) => { s += `<text x="${t.x}" y="${fl ? 11 : d.h - 4}" text-anchor="middle" class="p-term">${t.label}</text>`; });
+      d.terms.forEach((t) => { s += `<text x="${SB.termX(p, t)}" y="${fl ? 11 : d.h - 4}" text-anchor="middle" class="p-term">${t.label}</text>`; });
       s += d.draw(p, v);
       if (store.mode === 'free') s += `<g data-act="delpart" data-part="${p.id}" class="del"><title>Remove part</title><circle cx="${d.w - 3}" cy="3" r="9"/><path d="M${d.w - 7} -1l8 8m0-8l-8 8"/></g>`;
       s += '</g>';
     });
+    let around = 0;
     b.wires.forEach((w, i) => {
       const p = b.parts.find((p) => p.id === w.part);
       if (!p) return;
-      const a = SB.termPos(p, w.term), c = SB.pinPos(w.pin), col = wireColor(w.pin);
-      const path = `M${a.x} ${a.y}C${a.x} ${a.y + a.dir * 44} ${c.x} ${c.y + c.dir * (56 + (i % 4) * 9)} ${c.x} ${c.y}`;
+      const a = SB.termPos(p, w.term), c = SB.pinPos(w.pin), col = wireColor(w.pin), B = SB.BOARD;
+      let path;
+      if (a.dir === c.dir && (a.dir > 0 ? a.y < B.y : a.y > B.y + B.h)) {
+        // The pin is on the far edge of the board: go around the side instead of across the board.
+        const k = around++ % 4, left = (a.x + c.x) / 2 < B.x + B.w / 2;
+        const xs = left ? B.x - 30 - k * 8 : B.x + B.w + 14 + k * 8;
+        path = `M${a.x} ${a.y}V${a.y + a.dir * (7 + k * 4)}H${xs}V${c.y + c.dir * (27 + k * 5)}H${c.x}V${c.y}`;
+      } else path = `M${a.x} ${a.y}C${a.x} ${a.y + a.dir * 44} ${c.x} ${c.y + c.dir * (56 + (i % 4) * 9)} ${c.x} ${c.y}`;
       s += `<g class="wire" data-act="wire" data-i="${i}"><title>Click to remove this wire</title><path d="${path}" class="w-out"/><path d="${path}" class="w-in" stroke="${col}"/><circle cx="${c.x}" cy="${c.y}" r="5" fill="${col}"/></g>`;
     });
     b.parts.forEach((p) => SB.PARTS[p.type].terms.forEach((t) => {
@@ -84,6 +91,7 @@
     }
     if (tourOn) s += SB.drawTour(tourKey);
     svg.innerHTML = s;
+    $('#tidyBtn').hidden = !b.wires.length;
     svg.classList.toggle('arm-pins', !!pending && pending.kind === 'term');
     svg.classList.toggle('arm-terms', !!pending && pending.kind === 'pin');
     hintEl.textContent = tourOn ? 'Click a number to learn about that part of the board.'
@@ -174,6 +182,16 @@
   }
   window.addEventListener('pointerup', endGesture);
   window.addEventListener('pointercancel', endGesture);
+
+  /* ---------- tidy up ---------- */
+  function tidy() {
+    const b = ws().bench;
+    if (!b.parts.length) return;
+    pending = null;
+    SB.tidy(b);
+    benchChanged();
+  }
+  $('#tidyBtn').addEventListener('click', tidy);
 
   /* ---------- tour ---------- */
   function showTour() {
@@ -571,6 +589,7 @@
         w.bench = SB.missionBench(m);
         w.bench.wires = m.wiring.map(([part, term, pin]) => ({ part, term, pin }));
         w.program = m.solution();
+        SB.tidy(w.bench);
         return renderAll();
       case 'clearBench': stop(); w.bench = { parts: [], wires: [] }; return renderAll();
       case 'clearProg': stop(); w.program = []; return renderAll();

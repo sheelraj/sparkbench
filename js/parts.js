@@ -172,10 +172,56 @@
   };
 
   /* ---- geometry helpers ---- */
+  SB.termX = (p, t) => (p.mirror ? SB.PARTS[p.type].w - t.x : t.x);
   SB.isFlipped = (p) => p.y + SB.PARTS[p.type].h / 2 > BOARD.y + BOARD.h / 2;
   SB.termPos = function (p, termId) {
     const def = SB.PARTS[p.type], t = def.terms.find((t) => t.id === termId), fl = SB.isFlipped(p);
-    return { x: p.x + t.x, y: fl ? p.y - 12 : p.y + def.h + 12, dir: fl ? -1 : 1 };
+    return { x: p.x + SB.termX(p, t), y: fl ? p.y - 12 : p.y + def.h + 12, dir: fl ? -1 : 1 };
+  };
+
+  /* ---- Tidy up: move parts next to the pins they use, so wires cross as little as possible ----
+     1. Each part goes to the edge of the board (top or bottom) where most of its wires end.
+     2. GND wires move to the nearest GND pin. Every GND pin is the same connection, so nothing changes electrically.
+     3. A part is turned around (p.mirror) if that untangles its own legs.
+     4. Parts in a row are put in the same left-to-right order as their pins. */
+  SB.tidy = function (bench) {
+    const rows = { top: [], bot: [] };
+    const GND_BOT = ['GND2', 'GND3'];
+    bench.parts.forEach((p) => {
+      const def = SB.PARTS[p.type], ws = bench.wires.filter((w) => w.part === p.id);
+      const side = (w) => PINS[w.pin].side;
+      const sig = ws.filter((w) => PINS[w.pin].net !== 'GND');
+      const nTop = sig.filter((w) => side(w) === 'top').length, nBot = sig.length - nTop;
+      const row = nTop === nBot ? (sig.length || !ws.length ? (SB.isFlipped(p) ? 'bot' : 'top') : side(ws[0])) : nTop > nBot ? 'top' : 'bot';
+      const termOf = (w) => def.terms.find((t) => t.id === w.term);
+      // nearest ground on this part's side of the board
+      ws.filter((w) => PINS[w.pin].net === 'GND').forEach((w, i) => { w.pin = row === 'top' ? 'GND1' : GND_BOT[i % 2]; });
+      const near = ws.filter((w) => side(w) === row);
+      // would turning the part around cross fewer of its own wires?
+      const crossings = (mirror) => {
+        let n = 0;
+        for (let i = 0; i < near.length; i++) for (let j = i + 1; j < near.length; j++) {
+          const a = termOf(near[i]).x, b = termOf(near[j]).x;
+          const dt = mirror ? b - a : a - b, dp = PINS[near[i].pin].x - PINS[near[j].pin].x;
+          if (dt * dp < 0) n++;
+        }
+        return n;
+      };
+      if (near.length > 1) p.mirror = crossings(true) < crossings(false);
+      const use = near.length ? near : ws;
+      const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+      const want = use.length ? mean(use.map((w) => PINS[w.pin].x)) - mean(use.map((w) => SB.termX(p, termOf(w)))) : p.x;
+      rows[row].push({ p, w: def.w, want });
+    });
+    Object.entries(rows).forEach(([row, list]) => {
+      const gap = 14, lo = 4, hi = SB.VIEW.w - 4;
+      list.sort((a, b) => a.want - b.want);
+      let x = lo;
+      list.forEach((it) => { it.x = Math.max(it.want, x); x = it.x + it.w + gap; });
+      x = hi;
+      for (let i = list.length - 1; i >= 0; i--) { const it = list[i]; it.x = Math.min(it.x, x - it.w); x = it.x - gap; }
+      list.forEach((it) => { it.p.x = Math.round(Math.max(lo, it.x)); it.p.y = SB.slot(row === 'top' ? 0 : 1, 0).y; });
+    });
   };
   SB.pinPos = (pin) => ({ x: PINS[pin].x, y: PINS[pin].y, dir: PINS[pin].side === 'top' ? -1 : 1 });
 

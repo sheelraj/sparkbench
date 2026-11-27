@@ -5,6 +5,7 @@ A browser app where kids wire up an Arduino-style board, program it with drag-an
 ## What is in it
 
 - **Workbench** – an UNO-style board on a cutting mat. Click a leg on a part, then a pin on the board, to run a wire. Click a wire to remove it. Parts can be dragged around.
+- **Tidy up** – one button moves each part next to the pins it uses, turns it around if that untangles its legs, and switches GND wires to the nearest GND pin, so wires cross as little as possible. Wires that must reach the far edge of the board run around its side.
 - **8 parts** – LED (four colours), button, buzzer, knob, light sensor, servo, distance sensor, motion sensor. Sensors have sliders or press-and-hold controls so kids can test their code.
 - **Blocks** – loops, if/else, wait, lights, brightness, sound, servo, print and variables. Drag them from the list, or click one to add it at the end. Drag a block out of the program to delete it.
 - **Live MicroPython** – the code for the blocks updates as they change. While the program runs, the current block and its line of code light up together.
